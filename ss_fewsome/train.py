@@ -149,14 +149,10 @@ def train(train_dataset, val_dataset, N, model, epochs, seed, eval_epoch, shots,
       train_losses.append((loss_sum / len(batches)))
       print("Epoch: {}, Train loss: {}".format(epoch+1, train_losses[-1]))
 
-      print('eval')
-      pritn(eval_epoch)
-      print(epoch)
 
       if eval_epoch == 1:
 
           if (epoch % 10 == 0):
-              print('in here')
               df, results, ref_info,ref_std,oarsi_res, df_rmv, results_rmv, oarsi_results_rmv  = evaluate_severity(patches, args.padding,args.patchsize, args.stride,seed, train_dataset, val_dataset, model, args.data_path, criterion, args.device, shots,  args.meta_data_dir)
               oas.append(results.loc[metric, 'auc'])
               mid.append(results.loc[metric,'auc_mid'])
