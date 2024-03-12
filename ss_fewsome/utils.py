@@ -75,16 +75,16 @@ def get_pseudo_labels(train_ids_path, path_to_anom_scores, data_path, margin, ma
     df['av']=df.iloc[:,3:].mean(axis=1)
     df['std'] = df.iloc[:,3:-1].std(axis=1)
 
-    t0=pd.read_csv(train_ids_path + "train_seed_1001", index_col=0)
-    t1=pd.read_csv(train_ids_path + "train_seed_71530", index_col=0)
-    t2=pd.read_csv(train_ids_path + "train_seed_138647", index_col=0)
-    t3=pd.read_csv(train_ids_path + "train_seed_875688", index_col=0)
-    t4=pd.read_csv(train_ids_path + "train_seed_985772", index_col=0)
-    t5=pd.read_csv(train_ids_path + "train_seed_44", index_col=0)
-    t6=pd.read_csv(train_ids_path + "train_seed_34", index_col=0)
-    t7=pd.read_csv(train_ids_path + "train_seed_193", index_col=0)
-    t8=pd.read_csv(train_ids_path + "train_seed_244959", index_col=0)
-    t9=pd.read_csv(train_ids_path + "train_seed_8765", index_col=0)
+    t0=pd.read_csv(train_ids_path + "train_seed_1001.csv", index_col=0)
+    t1=pd.read_csv(train_ids_path + "train_seed_71530.csv", index_col=0)
+    t2=pd.read_csv(train_ids_path + "train_seed_138647.csv", index_col=0)
+    t3=pd.read_csv(train_ids_path + "train_seed_875688.csv", index_col=0)
+    t4=pd.read_csv(train_ids_path + "train_seed_985772.csv", index_col=0)
+    t5=pd.read_csv(train_ids_path + "train_seed_44.csv", index_col=0)
+    t6=pd.read_csv(train_ids_path + "train_seed_34.csv", index_col=0)
+    t7=pd.read_csv(train_ids_path + "train_seed_193.csv", index_col=0)
+    t8=pd.read_csv(train_ids_path + "train_seed_244959.csv", index_col=0)
+    t9=pd.read_csv(train_ids_path + "train_seed_8765.csv", index_col=0)
 
 
     df['id'] = df['id'].apply(lambda x: x.split('/')[-2] + '/' + x.split('/')[-1] )
@@ -175,7 +175,7 @@ def get_pseudo_labels(train_ids_path, path_to_anom_scores, data_path, margin, ma
 
 
     anoms=df_notrain.loc[df_notrain['sim'] < np.percentile(training_data['sim'], 95)].reset_index(drop=True)
-    anoms = anoms.loc[(anoms['count'] == len(files) ].reset_index(drop=True)
+    anoms = anoms.loc[anoms['count'] == len(files) ].reset_index(drop=True)
     anoms = anoms.sort_values(by='av', ascending =False).reset_index(drop=True)
 
 
