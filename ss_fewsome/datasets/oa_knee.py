@@ -38,17 +38,17 @@ class oa(data.Dataset):
 
             files = os.listdir(root + 'train/0/')
             if (stage == 'ss') | (stage=='stage2'):
-                train_ids = pd.read_csv( train_info_path + 'train_seed_' + str(seed)).iloc[:,2].tolist()
-                self.paths = self.paths + [root + ids for ids in train_ids]
+                train_ids = pd.read_csv( train_info_path + 'train_seed_' + str(seed) +'.csv').iloc[:,2].tolist()
+                self.paths = self.paths + [root + 'train/' + ids for ids in train_ids]
                 self.targets = self.targets + ([0]*len(train_ids))
-                self.paths2 = self.paths2 + [root + ids for ids in train_ids]
+                self.paths2 = self.paths2 + [root + 'train/' + ids for ids in train_ids]
                 self.targets2 = self.targets2 + ([0]*len(train_ids))
 
             elif stage =='stage3':
                 train_ids = pd.read_csv( train_info_path + 'train_ids.csv').iloc[:,1].tolist()
-                self.paths = self.paths + [root + ids for ids in train_ids]
+                self.paths = self.paths + [root + 'train/' + ids for ids in train_ids]
                 self.targets = self.targets + ([0]*len(train_ids))
-                self.paths2 = self.paths2 + [root + ids for ids in train_ids]
+                self.paths2 = self.paths2 + [root + 'train/' + ids for ids in train_ids]
                 self.targets2 = self.targets2 + ([0]*len(train_ids))
 
 
