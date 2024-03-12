@@ -12,7 +12,9 @@ The diagnostic accuracy and subjectivity of existing Knee Osteoarthritis (OA) or
 @inproceedings{
 }
 
+## Dataset
 
+Download 'kxr_sq_bu00.txt' and place it in the 'meta' directory.
 
 ## Installation 
 This code is written in Python 3.11 and requires the packages listed in requirements.txt.
@@ -36,3 +38,6 @@ pip install -r requirements.txt
 
 
 ## Running Experiments
+```
+python3 main.py --data_path <path_to_data>
+```
