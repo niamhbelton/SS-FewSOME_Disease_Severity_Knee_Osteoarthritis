@@ -28,7 +28,7 @@ To run the code, set up a virtual environment:
 
 ```
 pip install virtualenv
-cd <path-to-SS-FewSOME-directory>
+cd <path-to-repository-directory>
 virtualenv myenv
 source myenv/bin/activate
 pip install -r requirements.txt
