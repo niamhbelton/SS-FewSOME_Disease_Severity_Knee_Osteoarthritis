@@ -21,7 +21,7 @@ Use the following command to clone the repository to your local machine:
 
 
 ```
-git clone https://github.com/niamhbelton/FewSOME.git
+git clone https://github.com/niamhbelton/SS-FewSOME_Disease_Severity_Knee_Osteoarthritis.git
 ```
 
 To run the code, set up a virtual environment:
