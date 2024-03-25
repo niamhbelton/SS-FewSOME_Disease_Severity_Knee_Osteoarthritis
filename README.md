@@ -38,6 +38,27 @@ pip install -r requirements.txt
 
 
 ## Running Experiments
+The code below runs all stages and evaluates the model on the unlabelled and test dataset every 10 epochs.
+
 ```
 python3 main.py --data_path <path_to_data>
 ```
+
+The code below runs all stages evaluating only at the end.
+```
+python3 main.py --data_path <path_to_data> --eval_epoch 0
+```
+
+## Output
+
+The results are stored in the 'outputs' directory of the current working directory. There is a subfolder for each of the following;
+- logs: stores the AUC for each epoch, the train AUC, train loss etc.
+- results: creates a new file at each epoch that stores the AUC for various different methods of calculating the anomaly scores (in this work, we use 'centre_mean' for stages 'ss' and 'w_centre' for all other stages.
+- dfs: creates a new file at each epoch that stores the anomaly scores for each data instance in the test set and the unlabelled training set.
+- oarsi: creates a new file at each epoch that stores the AUC for OARSI detection.
+- models: stores the model after each epoch. Change argument 'save_models' to equal one to save the models.
+- label_details: stores the pseudo label distribution and names for each stage after 'ss'.
+
+Within each of the above subfolders, there is a subfolder for each stage; 'ss', 'stage2', 'stage3' and 'stage_severe_pred'.
+
+
