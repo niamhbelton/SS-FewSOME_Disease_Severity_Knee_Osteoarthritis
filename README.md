@@ -15,7 +15,7 @@ The diagnostic accuracy and subjectivity of existing Knee Osteoarthritis (OA) or
 Reference for the dataset;
 Chen, Pingjun (2018), “Knee Osteoarthritis Severity Grading Dataset”, Mendeley Data, V1, doi: 10.17632/56rmx5bjcr.1
 
-Additional meta data is required to calculate OARSI detection performance. To obtain this data, apply for access and download the baseline images from the [OAI](https://nda.nih.gov/oai), copy the file '~/X-Ray Image Assessments_ASCII-2/kxr_sq_bu00.txt' to the 'meta' directory. Otherwise, remove the OARSI detection from the code. 
+Additional meta data is required to calculate OARSI detection performance. To obtain this data, apply for access and download the baseline images from the [OAI](https://nda.nih.gov/oai), copy the file '~/X-Ray Image Assessments_ASCII-2/kxr_sq_bu00.txt' to the 'meta' directory and set the flag 'get_oarsi_results' to 1 when running the code. 
 
 
 ## Installation 
