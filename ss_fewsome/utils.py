@@ -8,13 +8,17 @@ from sklearn import metrics
 from sklearn.metrics import roc_curve, auc, roc_auc_score, precision_recall_fscore_support, f1_score, cohen_kappa_score, average_precision_score
 from scipy import stats
 import torch.nn.functional as F
+import sys
 
-def get_best_epoch(path_to_centre_dists, last_epoch, metric):
+MAX_MARGIN = 4
+precision = 0.0001
+
+def get_best_epoch(path_to_centre_dists, last_epoch, metric, model_prefix):
     '''
         find the epoch where the metric value begins to plateau for each file in path_to_centre_dists
     '''
     files = os.listdir(path_to_centre_dists)
-    files= [f for f in files if 'on_test_set' not in f]
+    files= [f for f in files if ('on_test_set' not in f) & (model_prefix in f)]
     best_epochs = {}
     for i,file in enumerate(files):
         logs = pd.read_csv(path_to_centre_dists + file)[metric]
@@ -22,28 +26,92 @@ def get_best_epoch(path_to_centre_dists, last_epoch, metric):
             seed = file.split('_seed_')[1].split('_')[0]
             smoothF = uniform_filter1d(logs, size = 20)
             dist_zero = np.abs(0 - np.gradient(smoothF))
-            if isinstance(last_epoch, dict):
-                best_epochs[seed] = (np.where(dist_zero == np.min(dist_zero)) [0][0] * 10 ) + last_epoch[seed]
+            if np.where(dist_zero == np.min(dist_zero))[0][0] < 40:
+                minimum = 40
             else:
-                best_epochs[seed] = (np.where(dist_zero == np.min(dist_zero)) [0][0] * 10 ) + last_epoch
+                minimum = np.where(dist_zero == np.min(dist_zero))[0][0]
+            if isinstance(last_epoch, dict):
+                best_epochs[seed] = (minimum * 10 ) + last_epoch[seed]
+            else:
+                best_epochs[seed] = (minimum * 10 ) + last_epoch
 
     return best_epochs
 
 
+def get_anoms(df, margin, t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, train_ids_path, files):
+    df['count'] = 0
+
+    for i in range(len(df)):
+
+        for j in range(len(files)):
+            if j ==0:
+                if df.iloc[i, 3+j] > (margin *np.max(t0['av'])):
+                    df.loc[i,'count']+=1
+
+            if j ==1:
+                if df.iloc[i, 3+j] > (margin *np.max(t1['av'])):
+                    df.loc[i,'count']+=1
+
+            if j ==2:
+                if df.iloc[i, 3+j] > (margin *np.max(t2['av'])):
+                    df.loc[i,'count']+=1
+
+            if j ==3:
+                if df.iloc[i, 3+j] > (margin *np.max(t3['av'])):
+                    df.loc[i, 'count']+=1
+
+            if j ==4:
+                if df.iloc[i, 3+j] > (margin *np.max(t4['av'])):
+                    df.loc[i,'count']+=1
+
+            if j ==5:
+                if df.iloc[i, 3+j] > (margin *np.max(t5['av'])):
+                    df.loc[i,'count']+=1
+
+            if j ==6:
+                if df.iloc[i, 3+j] > (margin *np.max(t6['av'])):
+                    df.loc[i,'count']+=1
+
+            if j ==7:
+                if df.iloc[i, 3+j] > (margin *np.max(t7['av'])):
+                    df.loc[i,'count']+=1
+
+            if j ==8:
+                if df.iloc[i, 3+j] > (margin *np.max(t8['av'])):
+                    df.loc[i,'count']+=1
+
+            if j ==9:
+                if df.iloc[i, 3+j] > (margin *np.max(t9['av'])):
+                    df.loc[i,'count']+=1
 
 
-def get_pseudo_labels(train_ids_path, path_to_anom_scores, data_path, margin, margin_upper, metric, current_epoch = None):
+
+
+    sim = pd.read_csv(train_ids_path + "sim_scores.csv")
+    sim['id'] = sim['id'].apply(lambda x: x.split('/')[-2] + '/' + x.split('/')[-1] )
+    df = df.merge(sim,on='id', how='left')
+    training_data = pd.read_csv(train_ids_path + 'train_ids.csv')
+    training_data.columns=['ind', 'id']
+    training_data['id'] = training_data['id'].apply(lambda x: x.split('/')[-2] + '/' + x.split('/')[-1] )
+    training_data = df.loc[df['id'].isin(training_data['id'].values.tolist())].reset_index(drop=True)
+    anoms=df.loc[df['sim'] < np.percentile(training_data['sim'], 95)].reset_index(drop=True)
+    anoms = anoms.loc[anoms['count'] == len(files) ].reset_index(drop=True)
+    return anoms
+
+
+
+def get_pseudo_labels(train_ids_path, path_to_anom_scores, data_path, margin, metric, current_epoch, num_pseudo_labels, model_name_prefix, model_name):
 
     files_total = os.listdir(path_to_anom_scores)
     if isinstance(current_epoch, dict):
         files=[]
         for key in current_epoch.keys():
-            f = [f for f in files_total if ( ('epoch_' + str(current_epoch[key]) in f) &  ('seed_' + str(key) in f)  &    ('removed_' not in f) &    ('on_test_set_' not in f)  ) ][0]
+
+            f = [f for f in files_total if ( ('epoch_' + str(current_epoch[key]) in f) &  ('seed_' + str(key) in f)  &   ('on_test_set_' not in f) &  (model_name_prefix in f)  ) ][0]
             files.append(f)
 
     else:
-        files = [f for f in files_total if ( ('epoch_' + str(current_epoch) in f) &   ('removed_' not in f) &    ('on_test_set_' not in f)  ) ]
-        print(files)
+        files = [f for f in files_total if ( ('epoch_' + str(current_epoch) in f) &  ('on_test_set_' not in f)  &  (model_name_prefix in f)  ) ]
         assert len(files) == 10
 
 
@@ -109,89 +177,38 @@ def get_pseudo_labels(train_ids_path, path_to_anom_scores, data_path, margin, ma
     t9['id'] = t9['id'].apply(lambda x: x.split('/')[-2] + '/' + x.split('/')[-1] )
     t9=t9.merge(df, on='id', how='left')
 
-    df['count'] = 0
+    if num_pseudo_labels is None:
+        anoms = get_anoms(df, margin, t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, train_ids_path, files)
+    else:
+        margin_found = False
+        while margin_found == False:
 
-    for i in range(len(df)):
+            anoms = get_anoms(df, margin, t0, t1, t2, t3, t4, t5, t6, t7, t8, t9, train_ids_path, files)
+            if num_pseudo_labels == len(anoms):
+                margin_found = True
+            margin+=precision
+            if margin > MAX_MARGIN:
+                print('Suitable margin not found. Try lowering the starting margin or lowering the precision value.')
+                sys.exit()
 
-        for j in range(len(files)):
-            if j ==0:
-                if df.iloc[i, 3+j] > (margin *np.max(t0['av'])):
-                    df.loc[i,'count']+=1
-
-            if j ==1:
-                if df.iloc[i, 3+j] > (margin *np.max(t1['av'])):
-                    df.loc[i,'count']+=1
-
-            if j ==2:
-                if df.iloc[i, 3+j] > (margin *np.max(t2['av'])):
-                    df.loc[i,'count']+=1
-
-            if j ==3:
-                if df.iloc[i, 3+j] > (margin *np.max(t3['av'])):
-                    df.loc[i, 'count']+=1
-
-            if j ==4:
-                if df.iloc[i, 3+j] > (margin *np.max(t4['av'])):
-                    df.loc[i,'count']+=1
-
-            if j ==5:
-                if df.iloc[i, 3+j] > (margin *np.max(t5['av'])):
-                    df.loc[i,'count']+=1
-
-            if j ==6:
-                if df.iloc[i, 3+j] > (margin *np.max(t6['av'])):
-                    df.loc[i,'count']+=1
-
-            if j ==7:
-                if df.iloc[i, 3+j] > (margin *np.max(t7['av'])):
-                    df.loc[i,'count']+=1
-
-            if j ==8:
-                if df.iloc[i, 3+j] > (margin *np.max(t8['av'])):
-                    df.loc[i,'count']+=1
-
-            if j ==9:
-                if df.iloc[i, 3+j] > (margin *np.max(t9['av'])):
-                    df.loc[i,'count']+=1
+        margin = margin - precision
 
 
 
 
-    sim = pd.read_csv(train_ids_path + "sim_scores.csv")
-    sim['id'] = sim['id'].apply(lambda x: x.split('/')[-2] + '/' + x.split('/')[-1] )
-
-
-    df = df.merge(sim,on='id', how='left')
-    training_data = pd.read_csv(train_ids_path + 'train_ids.csv')
-    training_data.columns=['ind', 'id']
-    training_data['id'] = training_data['id'].apply(lambda x: x.split('/')[-2] + '/' + x.split('/')[-1] )
-
-
-
-    training_data = df.loc[df['id'].isin(training_data['id'].values.tolist())].reset_index(drop=True)
-    df_notrain = df
-
-    print(df_notrain['count'].value_counts())
-
-
-    anoms=df_notrain.loc[df_notrain['sim'] < np.percentile(training_data['sim'], 95)].reset_index(drop=True)
-    anoms = anoms.loc[anoms['count'] == len(files) ].reset_index(drop=True)
     anoms = anoms.sort_values(by='av', ascending =False).reset_index(drop=True)
-
-
-
     anoms['id'] = anoms['id'].apply(lambda x: data_path + 'train/'+x)
 
-    anoms['label'].value_counts().to_csv('./outputs/label_details/anoms_label_current_epoch_{}.csv'.format(current_epoch))
+    anoms['label'].value_counts().to_csv('./outputs/label_details/' + model_name + 'anoms_label.csv'.format(current_epoch))
 
-    return anoms['id'].tolist()
-
-
+    return anoms['id'].tolist(), margin
 
 
 
 
-def write_results(df, results, res_name, logs_df, epoch, model, optimizer, ref_std, oarsi_res, df_rmv, results_rmv, oarsi_results_rmv, args):
+
+
+def write_results(df, results, res_name, logs_df, epoch, model, optimizer, ref_std, args, oarsi_res=None):
 
 
       try:
@@ -200,13 +217,12 @@ def write_results(df, results, res_name, logs_df, epoch, model, optimizer, ref_s
           pass
 
       results.to_csv('./outputs/results/' + res_name  + '_epoch_' +str(epoch) )
-      results_rmv.to_csv('./outputs/results/' + res_name  + 'train_removed_epoch_' +str(epoch) )
 
-      oarsi_res.to_csv('./outputs/oarsi/' + res_name  + '_epoch_' +str(epoch) )
-      oarsi_results_rmv.to_csv('./outputs/oarsi/' + res_name  + 'train_removed_epoch_' +str(epoch) )
+      if oarsi_res is not None:
+          oarsi_res.to_csv('./outputs/oarsi/' + res_name  + '_epoch_' +str(epoch) )
+
 
       if args.save_models == 1:
-        #  if (epoch>=22) & (epoch <29):
         torch.save({
           'model_state_dict': model.state_dict(),
           'optimizer_state_dict': optimizer.state_dict()
@@ -228,10 +244,6 @@ def write_results(df, results, res_name, logs_df, epoch, model, optimizer, ref_s
       if args.save_anomaly_scores ==1 :
           df = df.sort_values(by='centre_mean', ascending = False).reset_index(drop=True)
           df.to_csv('./outputs/dfs/' + res_name  + '_epoch_' +str(epoch))
-          df_rmv = df_rmv.sort_values(by='centre_mean', ascending = False).reset_index(drop=True)
-          df_rmv.to_csv('./outputs/dfs/' + res_name  + 'train_removed_epoch_' +str(epoch) )
-
-
 
 
 def create_patches(features, padding,patchsize, stride):
@@ -261,6 +273,105 @@ def create_patches(features, padding,patchsize, stride):
 
     return unfolded_features[0]
 
+
+
+def ensemble_results(df, stage, metric, meta_data_dir, get_oarsi_results):
+
+    res, auc, auc_mid, auc_mid2, auc_sev = get_metrics(df, metric)
+
+    print('Spearman rank correlation coeffinet of stage {}'.format(res))
+    print('OA AUC is {}'.format(auc_mid))
+    print('Severe AUC is {}'.format(auc_sev))
+
+    if get_oarsi_results:
+        if stage == 'ss':
+            oarsi_res = oarsi(df, 0, meta_data_dir, ['centre_mean'])
+            print('OARSI AUC is {}'.format(oarsi_res['auc'][0]))
+        else:
+            oarsi_res = oarsi(df, 30, meta_data_dir, ['w_centre'])
+            print('OARSI AUC is {}'.format(oarsi_res['auc'][0]))
+
+
+def print_ensemble_results(path_to_anom_scores, epoch, stage, metric, meta_data_dir, get_oarsi_results, model_name_prefix ):
+    print('---------------------------------------------------- For stage ' + stage + '----------------------------------------------------')
+    print('-----------------------------RESULTS ON UNLABELLED DATA---------------------------')
+    print('Warning: the results on unlabelled data includes the pseudo labels i.e. for stages that are not SSL and severe predictor, the model was trained on the psuedo labels which are also included in the unlabelled results')
+
+    files_total = os.listdir(path_to_anom_scores)
+    if isinstance(epoch, dict):
+        files=[]
+        for key in epoch.keys():
+            files = files + [file for file in files_total if (('epoch_' + str(epoch[key]) ) in file) & ('on_test_set' not in file ) & ('seed_' + str(key) in file) & (model_name_prefix in file) ]
+
+    else:
+        files = [file for file in files_total if (('epoch_' + str(epoch) ) in file) & ('on_test_set' not in file ) & (model_name_prefix in file)]
+
+    df = create_scores_dataframe(path_to_anom_scores, files, metric)
+    ensemble_results(df, stage, metric, meta_data_dir, get_oarsi_results)
+
+    print('-----------------------------RESULTS ON TEST SET---------------------------')
+    if isinstance(epoch, dict):
+        files=[]
+        for key in epoch.keys():
+            files = files + [file for file in files_total if (('epoch_' + str(epoch[key]) ) in file) & ('on_test_set' in file ) & ('seed_' + str(key) in file) & (model_name_prefix in file)]
+    else:
+        files = [file for file in files_total if (('epoch_' + str(epoch) ) in file) & ('on_test_set' in file ) & (model_name_prefix in file)]
+
+    df = create_scores_dataframe(path_to_anom_scores, files, metric)
+    ensemble_results(df, stage, metric, meta_data_dir, get_oarsi_results)
+
+
+def create_scores_dataframe(path_to_anom_scores, files, metric):
+    for i,file in enumerate(files):
+        if i ==0:
+            df = pd.read_csv(path_to_anom_scores + file)
+            df = df.sort_values(by='id').reset_index(drop=True)[['id','label', metric]]
+        else:
+            sc = pd.read_csv(path_to_anom_scores + file)
+            sc = sc.sort_values(by='id').reset_index(drop=True)[['id','label', metric]]
+            df.iloc[:,2:] = df.iloc[:,2:] + sc.iloc[:,2:]
+
+    df.iloc[:,2:] = df.iloc[:,2:] / len(files)
+    return df
+
+
+def get_threshold(path_to_anom_scores_sev, epoch_sev, metric):
+    files_total = os.listdir(path_to_anom_scores_sev)
+    files = [file for file in files_total if (('epoch_' + str(epoch_sev) ) in file) & ('on_test_set' in file ) ]
+
+    train = create_scores_dataframe(path_to_anom_scores_sev, files, metric)
+    train[metric] = (train[metric] + 2) / 4
+    threshold = np.percentile(train[metric], 95)
+    return threshold
+
+
+def combine_results(path_to_anom_scores_oa, path_to_anom_scores_sev, epoch_oa, epoch_sev, metric, meta_data_dir, get_oarsi_results, model_name_prefix ):
+    threshold = get_threshold(path_to_anom_scores_sev, epoch_sev, metric)
+
+    files_total = os.listdir(path_to_anom_scores_oa)
+    files=[]
+    for key in epoch_oa.keys():
+        files = files + [file for file in files_total if (('epoch_' + str(epoch_oa[key]) ) in file) & ('on_test_set' in file ) & ('seed_' + str(key) in file) & (model_name_prefix  in file) ]
+
+    df_oa = create_scores_dataframe(path_to_anom_scores_oa, files, metric)
+
+    files_total = os.listdir(path_to_anom_scores_sev)
+    files = [file for file in files_total if (('epoch_' + str(epoch_sev) ) in file) & ('on_test_set' in file ) ]
+    df_sev = create_scores_dataframe(path_to_anom_scores_sev, files, metric)
+
+
+    df_oa['comb_score'] = df_oa[metric]
+    df_oa['comb_score']= (df_oa['comb_score'] + 2) / 4
+    df_sev['comb_score'] = df_sev[metric]
+    df_sev['comb_score']= (df_sev['comb_score'] + 2) / 4
+    df_oa = df_oa.sort_values(by='id').reset_index(drop=True)
+    df_sev = df_sev.sort_values(by='id').reset_index(drop=True)
+    df_oa.loc[df_sev['comb_score'] > threshold, 'comb_score'] = 1 + df_sev.loc[df_sev['comb_score'] > threshold, 'comb_score']
+    stage='Final, combined'
+
+    print('---------------------------------------------------- For stage ' + stage + '----------------------------------------------------')
+    print('-----------------------------RESULTS ON TEST SET---------------------------')
+    ensemble_results(df_oa, stage, 'comb_score', meta_data_dir, get_oarsi_results)
 
 
 #------------------------------------------------------ evaluate helper functions ------------------------------------------------------
@@ -362,16 +473,16 @@ def get_df(scores_nominal, scores_anom,names, labels_sev):
 def get_res(df):
     results_values = df.columns.values[2:]
 
-    sp, auc,auc_mid,auc_mid2,auc_sev,acc0,acc1,acc2,acc3,acc4,acc, acc_total, ap, ap_mid, ap_mid2, ap_sev  = get_metrics(df, results_values[0])
-    results = pd.DataFrame([[sp], [auc], [auc_mid], [auc_sev],[ap], [ap_mid], [ap_mid2], [ap_sev], [acc0],[acc1],[acc2],[acc3],[acc4],[acc], [acc_total]])
+    sp, auc,auc_mid,auc_mid2,auc_sev  = get_metrics(df, results_values[0])
+    results = pd.DataFrame([[sp], [auc], [auc_mid], [auc_sev]])
     results=results.T
     for i in range(1, len(results_values)):
-        sp, auc,auc_mid,auc_mid2,auc_sev,acc0,acc1,acc2,acc3,acc4,acc, acc_total, ap, ap_mid, ap_mid2, ap_sev  = get_metrics(df, results_values[i] )
-        temp =pd.DataFrame([[sp], [auc], [auc_mid], [auc_mid2], [auc_sev], [ap], [ap_mid], [ap_mid2], [ap_sev], [acc0],[acc1],[acc2],[acc3],[acc4], [acc], [acc_total]]).T
+        sp, auc,auc_mid,auc_mid2,auc_sev  = get_metrics(df, results_values[i] )
+        temp =pd.DataFrame([[sp], [auc], [auc_mid], [auc_mid2], [auc_sev]]).T
         results = pd.concat([results, temp ], axis =0 )
 
 
-    results.columns= ['spearman', 'auc','auc_mid', 'auc_mid2', 'auc_sev','ap', 'ap_mid', 'ap_mid2', 'ap_sev', 'acc0','acc1','acc2','acc3','acc4','bal_acc', 'acc_not_bal'] #, 'wck']
+    results.columns= ['spearman', 'auc','auc_mid', 'auc_mid2', 'auc_sev']
     results.index = results_values
 
     return results
@@ -393,10 +504,8 @@ def get_results(scores_nominal, scores_anom, training_data,names, labels_sev):
         results = get_res(df)
         training_data = pd.DataFrame(training_data, columns=['id'])
         outer = df.merge(training_data, on='id', how='outer', indicator=True)
-        df_rmv = outer[(outer._merge=='left_only')].drop('_merge', axis=1)
-        results_rmv = get_res(df_rmv)
 
-        return df, results, df_rmv, results_rmv
+        return df, results
 
 
 
@@ -462,7 +571,7 @@ def convert(row):
 
 
 
-def oarsi(df, shots, meta_data_dir):
+def oarsi(df, shots, meta_data_dir, cols):
     '''
         get AUC for OARSI grading
     '''
@@ -474,10 +583,7 @@ def oarsi(df, shots, meta_data_dir):
     meta = meta.apply(convert, axis=1)
 
     df['ID'] = df.apply(lambda x: x['id'].split('/')[-1].split('.')[0], axis=1)
-    if shots > 0 :
-        cols=['centre_mean', 'norm_min', 'w_centre']
-    else:
-        cols=['centre_mean', 'norm_min']
+
     merged = df[['ID','label'] + cols].merge(meta[['ID', 'V00XRJSL']], on =['ID'], how='left')
     merged = merged.merge(meta[['ID', 'V00XRJSM']], on =['ID'], how='left')
     merged = merged.merge(meta[['ID', 'V00XROSFL', 'V00XROSFM', 'V00XROSTL', 'V00XROSTM']], on =['ID'], how='left')
@@ -496,10 +602,7 @@ def oarsi(df, shots, meta_data_dir):
               | ((merged['osteo_sum'] > 0) &   ((merged['V00XRJSM'] >0) | (merged['V00XRJSL'] > 0)) ), 'oarsi'] =1
 
     for col in cols:
-
-        merged['binary_label'] = 0
-        merged.loc[merged['oarsi'] > 0, 'binary_label'] = 1
-        fpr, tpr, thresholds = roc_curve(np.array(merged['binary_label']),np.array(merged[col]))
+        fpr, tpr, thresholds = roc_curve(np.array(merged['oarsi']),np.array(merged[col]))
         oarsi_res['oarsi_auc_' + col]  = metrics.auc(fpr, tpr)
 
     return pd.DataFrame(oarsi_res, index=['auc']).T
@@ -512,43 +615,10 @@ def get_metrics(df, score):
 
     res = stats.spearmanr(df[score].tolist(), df['label'].tolist())
 
-#    wck = cohen_kappa_score(df[score], df['label'], labels = np.array([0,1,2,3,4]), weights='linear')
-
-    thres4 = len(df.loc[df['label'] == 4]) / len(df)
-
-    thres4_val = np.percentile(df[score], float((1 - thres4)*100))
-    acc4 = len(df.loc[(df['label'] == 4) & (df[score] > thres4_val)]) / len(df.loc[df['label'] == 4])
-
-    thres3 = len(df.loc[df['label'] == 3]) / len(df)
-    thres3_val = np.percentile(df[score], float((1 - (thres4 + thres3))*100))
-    acc3 = len(df.loc[(df['label'] == 3) & (df[score] > thres3_val) & (df[score] <= thres4_val)]) / len(df.loc[df['label'] == 3])
-
-
-    thres2 = len(df.loc[df['label'] == 2]) / len(df)
-    thres2_val = np.percentile(df[score], float((1 - (thres2 + thres3 + thres4))*100))
-    acc2 = len(df.loc[(df['label'] == 2) & (df[score] > thres2_val) & (df[score] <= thres3_val)]) / len(df.loc[df['label'] == 2])
-
-
-    thres1 = len(df.loc[df['label'] == 1]) / len(df)
-    thres1_val = np.percentile(df[score], float( (1 - (thres1 + thres2 + thres3 + thres4))*100))
-    acc1 = len(df.loc[(df['label'] == 1) & (df[score] > thres1_val) & (df[score] <= thres2_val)]) / len(df.loc[df['label'] == 1])
-
-    thres0 = len(df.loc[df['label'] == 0]) / len(df)
-    thres0_val = np.percentile(df[score],  float(thres0*100))
-    acc0 = len(df.loc[(df['label'] == 0) & (df[score] <= thres0_val)]) / len(df.loc[df['label'] == 0])
-    acc = (acc0 + acc1 + acc2 + acc3 + acc4) / 5
-
-    acc_total = (len(df.loc[(df['label'] == 4) & (df[score] > thres4_val)]) + len(df.loc[(df['label'] == 3) & (df[score] > thres3_val) & (df[score] <= thres4_val)])  +
-      len(df.loc[(df['label'] == 2) & (df[score] > thres2_val) & (df[score] <= thres3_val)]) + len(df.loc[(df['label'] == 1) & (df[score] > thres1_val) & (df[score] <= thres2_val)])  +
-         len(df.loc[(df['label'] == 0) & (df[score] <= thres0_val)])) / len(df)
-
-
-
     df['binary_label'] = 0
     df.loc[df['label'] > 0, 'binary_label'] = 1
     fpr, tpr, thresholds = roc_curve(np.array(df['binary_label']),np.array(df[score]))
     auc = metrics.auc(fpr, tpr)
-    ap = average_precision_score(np.array(df['binary_label']), np.array(df[score]))
 
 
     df['binary_label'] = 0
@@ -556,22 +626,19 @@ def get_metrics(df, score):
 
     fpr, tpr, thresholds = roc_curve(np.array(df['binary_label']),np.array(df[score]))
     auc_mid = metrics.auc(fpr, tpr)
-    ap_mid = average_precision_score(np.array(df['binary_label']), np.array(df[score]))
 
 
     df['binary_label'] = 0
     df.loc[df['label'] > 2, 'binary_label'] = 1
     fpr, tpr, thresholds = roc_curve(np.array(df['binary_label']),np.array(df[score]))
     auc_mid2 = metrics.auc(fpr, tpr)
-    ap_mid2 = average_precision_score(np.array(df['binary_label']), np.array(df[score]))
 
 
     df['binary_label'] = 0
     df.loc[df['label'] == 4, 'binary_label'] = 1
     fpr, tpr, thresholds = roc_curve(np.array(df['binary_label']),np.array(df[score]))
     auc_sev = metrics.auc(fpr, tpr)
-    ap_sev = average_precision_score(np.array(df['binary_label']), np.array(df[score]))
 
 
 
-    return res[0], auc, auc_mid, auc_mid2, auc_sev,acc0,acc1,acc2,acc3,acc4,acc, acc_total, ap, ap_mid, ap_mid2, ap_sev
+    return res[0], auc, auc_mid, auc_mid2, auc_sev

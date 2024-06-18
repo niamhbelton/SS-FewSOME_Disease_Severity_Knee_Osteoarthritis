@@ -8,7 +8,7 @@ import warnings
 warnings.filterwarnings("ignore")
 
 
-def evaluate_severity( patches, padding,patchsize, stride, seed,ref_dataset, val_dataset, model,  data_path, criterion,  dev, shots, meta_data_dir):
+def evaluate_severity( patches, padding,patchsize, stride, seed,ref_dataset, val_dataset, model,  data_path, criterion,  dev, shots, meta_data_dir, get_oarsi_results):
 
     model.eval()
     loader = torch.utils.data.DataLoader(val_dataset, batch_size=1, shuffle=False, num_workers=1, drop_last=False) #create loader for dataset for test set
@@ -81,14 +81,18 @@ def evaluate_severity( patches, padding,patchsize, stride, seed,ref_dataset, val
 
 
     if shots > 0:
-        df, results,df_rmv, results_rmv = get_results(get_nominal_scores.scores, get_anom_scores.scores, ref_dataset.paths2, names, labels_sev)
+        df, results = get_results(get_nominal_scores.scores, get_anom_scores.scores, ref_dataset.paths2, names, labels_sev)
     else:
-        df, results,df_rmv, results_rmv = get_results(get_nominal_scores.scores, {}, ref_dataset.paths2, names, labels_sev)
-
-
-    oarsi_results = oarsi(df, shots, meta_data_dir)
-    oarsi_results_rmv = oarsi(df_rmv, shots, meta_data_dir)
+        df, results = get_results(get_nominal_scores.scores, {}, ref_dataset.paths2, names, labels_sev)
 
 
 
-    return df, results, pd.DataFrame(ref_info).T, ref_std, oarsi_results, df_rmv, results_rmv, oarsi_results_rmv
+    if get_oarsi_results:
+        if shots > 0:
+            oarsi_results = oarsi(df, shots, meta_data_dir, ['centre_mean', 'norm_min', 'w_centre'])
+        else:
+            oarsi_results = oarsi(df, shots, meta_data_dir, ['centre_mean', 'norm_min'])
+
+        return df, results, pd.DataFrame(ref_info).T, ref_std, oarsi_results
+    else:
+        return df, results, pd.DataFrame(ref_info).T, ref_std

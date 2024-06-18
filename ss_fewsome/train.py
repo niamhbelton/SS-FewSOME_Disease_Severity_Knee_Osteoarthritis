@@ -34,12 +34,12 @@ def create_batches(lst, n):
         yield lst[i:i + n]
 
 
-def centre_sim(padding, patchsize, stride, ref_dataset, model, dev):
+def centre_sim(padding, patchsize, stride, ref_dataset, model, dev, shots):
         '''
             returns the similarity between the centre of normality and anomalous centre
         '''
         model.eval()
-        mat, mat_anom = create_mat(ref_dataset, model, padding, patchsize, stride, dev)
+        mat, mat_anom = create_mat(ref_dataset, model, padding, patchsize, stride, dev, shots)
         c= create_centre(mat) #1 x 256
         c_anom = create_centre(mat_anom)
         return F.cosine_similarity(c, c_anom, dim=0).cpu().numpy()
@@ -79,7 +79,7 @@ def train(train_dataset, val_dataset, N, model, epochs, seed, eval_epoch, shots,
 
 
 
-  for epoch in range(epochs):
+  for epoch in range(epochs+1):
 
       train_preds = []
       train_labels=[]
@@ -153,7 +153,11 @@ def train(train_dataset, val_dataset, N, model, epochs, seed, eval_epoch, shots,
       if eval_epoch == 1:
 
           if (epoch % 10 == 0):
-              df, results, ref_info,ref_std,oarsi_res, df_rmv, results_rmv, oarsi_results_rmv  = evaluate_severity(patches, args.padding,args.patchsize, args.stride,seed, train_dataset, val_dataset, model, args.data_path, criterion, args.device, shots,  args.meta_data_dir)
+              if args.get_oarsi_results:
+                    df, results, ref_info,ref_std,oarsi_res = evaluate_severity(patches, args.padding,args.patchsize, args.stride,seed, train_dataset, val_dataset, model, args.data_path, criterion, args.device, shots,  args.meta_data_dir, args.get_oarsi_results)
+              else:
+                    df, results, ref_info,ref_std = evaluate_severity(patches, args.padding,args.patchsize, args.stride,seed, train_dataset, val_dataset, model, args.data_path, criterion, args.device, shots,  args.meta_data_dir, args.get_oarsi_results)
+
               oas.append(results.loc[metric, 'auc'])
               mid.append(results.loc[metric,'auc_mid'])
               mid_2.append(results.loc[metric,'auc_mid2'])
@@ -182,12 +186,19 @@ def train(train_dataset, val_dataset, N, model, epochs, seed, eval_epoch, shots,
               if shots > 0:
                   logs_df=pd.concat([logs_df, pd.DataFrame(ref_c, columns=['ref_centre']) ], axis =1)
 
+              if args.get_oarsi_results:
+                  write_results(df, results, model_name, logs_df, current_epoch+epoch, model, optimizer, ref_std, args, oarsi_res)
+              else:
+                  write_results(df, results, model_name, logs_df, current_epoch+epoch, model, optimizer, ref_std, args)
 
-
-              write_results(df, results, model_name, logs_df, current_epoch+epoch, model, optimizer, ref_std ,oarsi_res,  df_rmv, results_rmv, oarsi_results_rmv, args)
 
               if test_dataset is not None:
-                       df, results, ref_info,ref_std,oarsi_res, df_rmv, results_rmv, oarsi_results_rmv  = evaluate_severity(patches, args.padding,args.patchsize, args.stride,seed, train_dataset, test_dataset, model, args.data_path, criterion, args.device, shots, args.meta_data_dir)
+                       if args.get_oarsi_results:
+                           df, results, ref_info,ref_std,oarsi_res = evaluate_severity(patches, args.padding,args.patchsize, args.stride,seed, train_dataset, test_dataset, model, args.data_path, criterion, args.device, shots, args.meta_data_dir, args.get_oarsi_results)
+                       else:
+                           df, results, ref_info,ref_std = evaluate_severity(patches, args.padding,args.patchsize, args.stride,seed, train_dataset, test_dataset, model, args.data_path, criterion, args.device, shots, args.meta_data_dir, args.get_oarsi_results)
+
+
                        oas_test.append(results.loc[metric, 'auc'])
                        mid_test.append(results.loc[metric,'auc_mid'])
                        mid_2_test.append(results.loc[metric,'auc_mid2'])
@@ -204,13 +215,15 @@ def train(train_dataset, val_dataset, N, model, epochs, seed, eval_epoch, shots,
                        if shots > 0:
                            logs_df=pd.concat([logs_df, pd.DataFrame(ref_c, columns=['ref_centre']) ], axis =1)
 
-
-                       write_results(df, results, model_name + '_on_test_set', logs_df, current_epoch+epoch, model, optimizer, ref_std ,oarsi_res,  df_rmv, results_rmv, oarsi_results_rmv, args)
+                       if args.get_oarsi_results:
+                           write_results(df, results, model_name + '_on_test_set', logs_df, current_epoch+epoch, model, optimizer, ref_std, args, oarsi_res)
+                       else:
+                           write_results(df, results, model_name + '_on_test_set', logs_df, current_epoch+epoch, model, optimizer, ref_std, args)
 
 
       if (epoch % 10 == 0) & (eval_epoch ==0):
           if shots > 0:
-              ref_c.append( centre_sim( args.padding,args.patchsize, args.stride, train_dataset, model, args.device))
+              ref_c.append( centre_sim( args.padding,args.patchsize, args.stride, train_dataset, model, args.device, shots))
           eps.append(epoch)
           oas.append('na')
           mid.append('na')
@@ -242,16 +255,22 @@ def train(train_dataset, val_dataset, N, model, epochs, seed, eval_epoch, shots,
 
 
 
-      if (epoch == epochs-1) & (eval_epoch == 0):
-            df, results,ref_info,ref_std,oarsi_res, df_rmv, results_rmv, oarsi_results_rmv  = evaluate_severity(patches, args.padding,args.patchsize, args.stride,seed, train_dataset, val_dataset, model,  args.data_path, criterion, args.device, shots, args.meta_data_dir)
-            write_results(df, results, model_name, logs_df, current_epoch+epoch, model, optimizer, ref_std ,oarsi_res,  df_rmv, results_rmv, oarsi_results_rmv, args)
+      if (epoch == epochs):
+            if args.get_oarsi_results:
+                df, results,ref_info,ref_std,oarsi_res  = evaluate_severity(patches, args.padding,args.patchsize, args.stride,seed, train_dataset, val_dataset, model,  args.data_path, criterion, args.device, shots, args.meta_data_dir, args.get_oarsi_results)
+                write_results(df, results, model_name, logs_df, current_epoch+epoch, model, optimizer, ref_std , args, oarsi_res)
+            else:
+                df, results,ref_info,ref_std  = evaluate_severity(patches, args.padding,args.patchsize, args.stride,seed, train_dataset, val_dataset, model,  args.data_path, criterion, args.device, shots, args.meta_data_dir, args.get_oarsi_results)
+                write_results(df, results, model_name, logs_df, current_epoch+epoch, model, optimizer, ref_std , args)
+
+
             if test_dataset is not None:
-                df, results,ref_info,ref_std,oarsi_res, df_rmv, results_rmv, oarsi_results_rmv  = evaluate_severity(patches, args.padding,args.patchsize, args.stride,seed, train_dataset, test_dataset, model, args.data_path, criterion, args.device, shots, args.meta_data_dir)
-                write_results(df, results, model_name + '_on_test_set', logs_df, current_epoch+epoch, model, optimizer, ref_std ,oarsi_res,  df_rmv, results_rmv, oarsi_results_rmv, args)
-
-
-
-
+                if args.get_oarsi_results:
+                    df, results,ref_info,ref_std,oarsi_res = evaluate_severity(patches, args.padding,args.patchsize, args.stride,seed, train_dataset, test_dataset, model, args.data_path, criterion, args.device, shots, args.meta_data_dir, args.get_oarsi_results)
+                    write_results(df, results, model_name + '_on_test_set', logs_df, current_epoch+epoch, model, optimizer, ref_std , args, oarsi_res)
+                else:
+                    df, results,ref_info,ref_std = evaluate_severity(patches, args.padding,args.patchsize, args.stride,seed, train_dataset, test_dataset, model, args.data_path, criterion, args.device, shots, args.meta_data_dir, args.get_oarsi_results)
+                    write_results(df, results, model_name + '_on_test_set', logs_df, current_epoch+epoch, model, optimizer, ref_std, args)
 
 
   print("Finished Training")
