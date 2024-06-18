@@ -37,7 +37,7 @@ class oa(data.Dataset):
 
 
             files = os.listdir(root + 'train/0/')
-            if (stage == 'ss') | (stage=='stage2'):
+            if (stage == 'ss') | (stage=='stage2') | (stage=='stage_severe_pred'):
                 train_ids = pd.read_csv( train_info_path + 'train_seed_' + str(seed) +'.csv').iloc[:,2].tolist()
                 self.paths = self.paths + [root + 'train/' + ids for ids in train_ids]
                 self.targets = self.targets + ([0]*len(train_ids))
