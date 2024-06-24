@@ -279,7 +279,7 @@ def ensemble_results(df, stage, metric, meta_data_dir, get_oarsi_results):
 
     res, auc, auc_mid, auc_mid2, auc_sev = get_metrics(df, metric)
 
-    print('Spearman rank correlation coeffinet of stage {}'.format(res))
+    print('Spearman rank correlation coeffient of stage {}'.format(res))
     print('OA AUC is {}'.format(auc_mid))
     print('Severe AUC is {}'.format(auc_sev))
 
