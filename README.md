@@ -32,10 +32,11 @@ To run the code, set up a virtual environment:
 
 ```
 pip install virtualenv
-cd <path-to-repository-directory>/ss_fewsome
+cd <path-to-repository-directory>
 virtualenv myenv
 source myenv/bin/activate
 pip install -r requirements.txt
+cd ss_fewsome
 ```
 
 
